@@ -56,23 +56,30 @@ def clean_review(text, bert=False):
     return text
 
 
-def main(single_sentence):
-
-    with open('tokenizer.json') as f:
-        data = f.read()
-        tokenizer = tokenizer_from_json(data)
+def main(single_sentence, x_test_col, y_test_col):
 
     if single_sentence:
-        test_sequences = tokenizer.texts_to_sequences(single_sentence)
+        test_sequences = tokenizer.texts_to_sequences(str(single_sentence))
         test_padded = pad_sequences(
             test_sequences, maxlen=MAX_LENGTH, padding='post', truncating='post')
         sentiment = np.round(BEST_MODEL.predict(test_padded)).flatten()
         print(f"Sentiment: {sentiment}")
         return
 
-    test_df["rating"] = test_df["rating"].apply(lambda x: 1 if x > 5 else 0)
-    test_df["lemmas"] = test_df["review"].apply(lambda r: clean_review(r))
-    y_test = test_df["rating"].values
+    if not any(el in test_df.columns for el in [x_test_col, y_test_col]):
+        raise ValueError("""
+                         Please set up correct X and Y column names
+                         Example: 'inference.py -x text -y sentiment
+                         Base: X = "review", Y = "rating"
+                         """)
+
+    with open('tokenizer.json') as f:
+        data = f.read()
+        tokenizer = tokenizer_from_json(data)
+
+    test_df["rating"] = test_df[y_test_col].apply(lambda x: 1 if x > 5 else 0)
+    test_df["lemmas"] = test_df[x_test_col].apply(lambda r: clean_review(r))
+    y_test = test_df[y_test_col].values
 
     # setting up tokenizer
     test_sequences = tokenizer.texts_to_sequences(test_df["lemmas"])
@@ -91,6 +98,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inference on Test set")
     parser.add_argument("-s", "--sentence",
                         help="Inference on a single sentence", default=False)
+    parser.add_argument("-x", "--x_test",
+                        help="explicit set the column to accept as target variable", default="review")
+    parser.add_argument("-y", "--y_test",
+                        help="explicit set the column to accept as target variable", default="rating")
 
     args = parser.parse_args
-    main(args.sentence)
+    main(args.sentence,
+         args.str(x_test),
+         args.str(y_test))
